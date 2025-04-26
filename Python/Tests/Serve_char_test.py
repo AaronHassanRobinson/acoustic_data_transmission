@@ -1,6 +1,21 @@
 import numpy as np
 import sounddevice as sd
 import time
+"""
+Test send a char byte to a listening client acoustically
+===============================
+By Aaron Hassan Robinson
+This code contains functions to send a byte, (hard set to 'K') to a listening client via acoustic signals. 
+All frequencies in Hz: 
+FREQ_START: The start bit, tells client to begin receiving
+FREQ_STOP: Stop bit, tells client transmission has ended
+FREQ_0: 0 Bit
+FREQ_1: 1 Bit
+// -- // -- //
+BIT_DURATION: How long to play each tone for, the user should synchronize this with the receiving client
+"""
+
+
 
 # Protocol frequencies
 FREQ_START = 200
