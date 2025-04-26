@@ -9,23 +9,13 @@ from Acoustic import *
 # Parameters
 # ==============================
 sample_rate_fs = 44100                  # Sampling rate (Hz)
-bit_rate = 100              # Bits per second
+bit_rate = 550              # Bits per second
 f0  = 500           
 f1 = 1500        # Frequencies for 0 and 1 (Hz)
 guard_band = 100 # 100hz guard band
 preamble = np.array([1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0])  # Barker code
 samples_per_bit = int(sample_rate_fs / bit_rate)
 
-# ==============================
-# Transmitter
-# ==============================
-# def generate_fsk_signal(bits):
-#     t = np.linspace(0, 1/bit_rate, samples_per_bit, endpoint=False)
-#     signal = np.array([])
-#     for bit in bits:
-#         freq = f0 if bit == 0 else f1
-#         signal = np.append(signal, np.sin(2 * np.pi * freq * t))
-#     return signal
 
 
 # Generate random data + preamble
@@ -38,6 +28,7 @@ tx_signal = modulate_fsk(bits=tx_bits, sample_rate=sample_rate_fs, freq0=f0, fre
 # Underwater Channel Effects
 # ==============================
 def add_channel_effects(signal):
+    signal = signal / np.max(np.abs(signal))  ## Normalise signal 
     # Add noise (AWGN)
     noise = 0.2 * np.random.randn(len(signal))
     noisy_signal = signal + noise
@@ -51,20 +42,7 @@ def add_channel_effects(signal):
 
 rx_signal = add_channel_effects(tx_signal)
 
-# ==============================
-# Filtering
-# ==============================
-def butter_bandpass(lowcut, highcut, fs, order=5):
-    nyq = 0.5 * fs
-    low = lowcut / nyq
-    high = highcut / nyq
-    b, a = butter(order, [low, high], btype='band')
-    return b, a
 
-def bandpass_filter(data, lowcut, highcut, fs, order=5):
-    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-    y = lfilter(b, a, data)
-    return y
 
 # Apply bandpass filter
 lowcut = min(f0, f1) - guard_band  # 500Hz guard band
@@ -74,51 +52,30 @@ filtered_signal = bandpass_filter(rx_signal, lowcut, highcut, sample_rate_fs)
 # ==============================
 # Receiver
 # ==============================
+# [todo]: investigate if this is the best way to detect preamble
 def detect_preamble(signal, preamble):
-    # Correlate with ideal preamble
     preamble_signal = modulate_fsk(bits=preamble, sample_rate=sample_rate_fs, freq0=f0, freq1=f1,bit_rate=bit_rate)
-    correlation = correlate(signal, preamble_signal, mode='valid')
+    correlation = correlate(signal, preamble_signal, mode='full')
     peak_idx = np.argmax(correlation)
-    return peak_idx
+    return peak_idx - len(preamble_signal) + 1  # Proper correlation offset
 
-def demodulate_fsk(signal, start_idx):
-    bits = []
-    for i in range(start_idx, len(signal), samples_per_bit):
-        chunk = signal[i:i+samples_per_bit]
-        if len(chunk) < samples_per_bit:
-            break  # Skip incomplete bits
-        
-        # Create time array for this chunk
-        t = np.linspace(0, len(chunk)/sample_rate_fs, len(chunk), endpoint=False)
-        
-        # Mix with reference frequencies
-        mixed_f0 = chunk * np.sin(2 * np.pi * f0 * t)
-        mixed_f1 = chunk * np.sin(2 * np.pi * f1 * t)
-        
-        # Calculate power for each frequency
-        power0 = np.sum(np.abs(mixed_f0))
-        power1 = np.sum(np.abs(mixed_f1))
-        
-        bits.append(0 if power0 > power1 else 1)
-    #print("received bits:"+ bits)
-    return bits
 
 # Detect preamble and demodulate (using filtered signal)
 preamble_start = detect_preamble(filtered_signal, preamble)
-rx_bits = demodulate_fsk(filtered_signal, preamble_start + len(preamble) * samples_per_bit)
-
+#rx_bits = demodulate_fsk(filtered_signal, preamble_start + len(preamble) * samples_per_bit)
+rx_bits = demodulate_fsk(signal=filtered_signal, sample_rate=sample_rate_fs, freq0=f0, freq1=f1, bit_rate=bit_rate, start_index=preamble_start + len(preamble)* samples_per_bit )
 # ==============================
 # Analysis
 # ==============================
 # Bit Error Rate (BER)
-ber = np.sum(np.abs(rx_bits - data_bits[:len(rx_bits)])) / len(rx_bits)
+min_len = min(len(rx_bits), len(data_bits))
+ber = np.sum(np.abs(rx_bits[:min_len] - data_bits[:min_len])) / min_len
 print(f"Bit Error Rate (BER): {ber:.4f}")
 
 # ==============================
 # Enhanced Plotting with Filtering
 # ==============================
-def plot_tx_rx_filtered(tx_bits, rx_bits, tx_signal, rx_signal, filtered_signal, samples_per_bit):
-    plt.figure(figsize=(12, 10))
+def plot_tx_rx_filtered(expected_bits, rx_bits, tx_signal, rx_signal, filtered_signal, samples_per_bit): 
     
     # Plot 1: Transmitted signal with bits
     plt.subplot(4, 1, 1)
@@ -146,7 +103,7 @@ def plot_tx_rx_filtered(tx_bits, rx_bits, tx_signal, rx_signal, filtered_signal,
 
     # Plot 4: Bit comparison
     plt.subplot(4, 1, 4)
-    plt.step(range(20), tx_bits[:20], 'b-', where='mid', label="Transmitted")
+    plt.step(range(20), expected_bits[:20], 'b-', where='mid', label="Transmitted")
     plt.step(range(20), rx_bits[:20], 'r--', where='mid', label="Received")
     plt.title("Bit Comparison (Errors Marked)")
     plt.yticks([0, 1])
@@ -154,8 +111,8 @@ def plot_tx_rx_filtered(tx_bits, rx_bits, tx_signal, rx_signal, filtered_signal,
     
     # Mark bit errors
     error_count = 0
-    for i, (tx_bit, rx_bit) in enumerate(zip(tx_bits[:20], rx_bits[:20])):
-        if tx_bit != rx_bit:
+    for i, (expected_bits, rx_bit) in enumerate(zip(expected_bits[:20], rx_bits[:20])):
+        if expected_bits != rx_bit:
             plt.scatter(i, 0.5, color='black', marker='x', s=100)
             error_count += 1
     print(f"Total errors: {error_count}")
@@ -170,4 +127,11 @@ def plot_tx_rx_filtered(tx_bits, rx_bits, tx_signal, rx_signal, filtered_signal,
 # Generate plots
 print("data bits:    ", ''.join(str(b) for b in data_bits[:len(rx_bits)]))
 print("received bits:", ''.join(str(b) for b in rx_bits))
-plot_tx_rx_filtered(tx_bits, rx_bits, tx_signal, rx_signal, filtered_signal, samples_per_bit)
+plot_tx_rx_filtered(
+    expected_bits=data_bits,  
+    rx_bits=rx_bits,
+    tx_signal=tx_signal,
+    rx_signal=rx_signal,
+    filtered_signal=filtered_signal,
+    samples_per_bit=samples_per_bit
+)

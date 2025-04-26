@@ -17,16 +17,18 @@ real-world interfacing.
 
 Modules:
 --------
-- fsk         : FSK modulation/demodulation logic
-- protocol    : Bit framing, preamble detection, CRC
-- physical    : Audio interface for playback/recording
-- codec       : Bit-packing, serialization/deserialization
+- fsk            : FSK modulation/demodulation logic
+- protocol       : Bit framing, preamble detection, CRC
+- physical       : Audio interface for playback/recording
+- codec          : Bit-packing, serialization/deserialization
+- signal_filters : Signal filtering functions
 """
 
 from .fsk import modulate_fsk, demodulate_fsk
 from .protocol import encode_packet, decode_packet, detect_preamble
 from .physical import record_audio, play_audio
 from .codec import pack_bits, unpack_bits
+from .signal_filters import butter_bandpass, bandpass_filter
 
 __all__ = [
     "modulate_fsk",
@@ -37,5 +39,7 @@ __all__ = [
     "record_audio",
     "play_audio",
     "pack_bits",
-    "unpack_bits"
+    "unpack_bits",
+    "butter_bandpass",
+    "bandpass_filter"
 ]
