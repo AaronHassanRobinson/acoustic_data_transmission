@@ -9,14 +9,15 @@ from Acoustic import *
 # Parameters
 # ==============================
 sample_rate_fs = 44100                  # Sampling rate (Hz)
-bit_rate = 550              # Bits per second
+bit_rate = 100              # Bits per second
 f0  = 500           
 f1 = 1500        # Frequencies for 0 and 1 (Hz)
 guard_band = 100 # 100hz guard band
 preamble = np.array([1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0])  # Barker code
 samples_per_bit = int(sample_rate_fs / bit_rate)
 
-
+DISTANCE_M = 10
+MEDIUM_TYPE = "saltwater"
 
 # Generate random data + preamble
 data_bits = np.random.randint(0, 2, 21)
@@ -27,20 +28,74 @@ tx_signal = modulate_fsk(bits=tx_bits, sample_rate=sample_rate_fs, freq0=f0, fre
 # ==============================
 # Underwater Channel Effects
 # ==============================
-def add_channel_effects(signal):
-    signal = signal / np.max(np.abs(signal))  ## Normalise signal 
-    # Add noise (AWGN)
-    noise = 0.2 * np.random.randn(len(signal))
-    noisy_signal = signal + noise
+def add_channel_effects(signal, distance_m, medium='saltwater', temp_c=10, salinity_ppt=35, depth_m=100):
+    """
+    Simulates underwater acoustic channel effects
     
-    # Add multipath (delayed echo)
-    delay = int(0.5 * samples_per_bit)
-    multipath = 0.3 * np.roll(signal, delay)
-    multipath[:delay] = 0
+    Args:
+        signal (np.array): Input signal
+        distance_m (float): Distance from source in meters
+        medium (str): Water type ('saltwater', 'freshwater', 'coastal', 'arctic')
+        temp_c (float): Water temperature in °C
+        salinity_ppt (float): Salinity in parts per thousand
+        depth_m (float): Depth in meters
+        
+    Returns:
+        np.array: Signal with channel effects
+    """
+    # Normalize signal first
+    signal = signal / np.max(np.abs(signal))
     
-    return noisy_signal + multipath
+    # 1. Calculate attenuation
+    def get_attenuation(freq, distance):
+        """Combines spreading and absorption loss"""
+        # Spreading loss (cylindrical)
+        spreading_loss = 10 * np.log10(distance)  # dB
+        
+        # Absorption loss (Thorp formula for frequencies > 400 Hz)
+        if medium == 'saltwater':
+            # Thorp's equation (dB/km)
+            absorption = 0.11 * (freq**2)/(1 + freq**2) + 44 * (freq**2)/(4100 + freq**2) + 2.75e-4 * freq**2 + 0.003
+        elif medium == 'freshwater':
+            absorption = 0.002 + 0.11 * (freq**2)/(1 + freq**2) + 0.011 * freq**2
+        elif medium == 'coastal':
+            absorption = 0.15 * (freq**1.5)  # Empirical approximation
+        elif medium == 'arctic':
+            absorption = 0.001 * freq  # Cold water approximation
+        else:
+            raise ValueError(f"Unknown medium: {medium}")
+        
+        absorption_loss = absorption * (distance/1000)  # Convert to dB
+        
+        return spreading_loss + absorption_loss
+    
+    # 2. Apply frequency-dependent attenuation (simplified version)
+    center_freq = (f0 + f1)/2
+    total_loss_db = get_attenuation(center_freq, distance_m)
+    attenuation = 10**(-total_loss_db/20)  # Convert dB to linear
+    
+    # 3. Apply basic time spreading (multipath)
+    delay_spread = int((distance_m / 1500) * sample_rate_fs)  # Speed of sound ~1500m/s
+    multipath = 0.4 * np.roll(signal, delay_spread)
+    multipath[:delay_spread] = 0
+    
+    # 4. Add environmental noise
+    def ambient_noise(freq):
+        """Wenz curve approximation for ambient noise"""
+        if medium == 'arctic':
+            return 1e-4  # Quieter environment
+        return 5e-4 * (freq/1000)**-1.5  # Frequency-dependent noise
+    
+    noise_level = ambient_noise(center_freq) * np.random.randn(len(signal))
+    
+    # 5. Combine all effects
+    attenuated_signal = signal * attenuation
+    noisy_signal = attenuated_signal + multipath + noise_level
+    
+    return noisy_signal / np.max(np.abs(noisy_signal))  # Renormalize
 
-rx_signal = add_channel_effects(tx_signal)
+
+rx_signal = add_channel_effects(signal=tx_signal, distance_m=DISTANCE_M, medium=MEDIUM_TYPE)
 
 
 
@@ -75,7 +130,7 @@ print(f"Bit Error Rate (BER): {ber:.4f}")
 # ==============================
 # Enhanced Plotting with Filtering
 # ==============================
-def plot_tx_rx_filtered(expected_bits, rx_bits, tx_signal, rx_signal, filtered_signal, samples_per_bit): 
+def plot_tx_rx_filtered(expected_bits, rx_bits, tx_signal, rx_signal, filtered_signal, samples_per_bit, distance=0, medium="unknown", temp=10): 
     
     # Plot 1: Transmitted signal with bits
     plt.subplot(4, 1, 1)
@@ -90,7 +145,11 @@ def plot_tx_rx_filtered(expected_bits, rx_bits, tx_signal, rx_signal, filtered_s
     # Plot 2: Raw received signal (noisy)
     plt.subplot(4, 1, 2)
     plt.plot(rx_signal[:20*samples_per_bit], 'g-', alpha=0.7, label="Received (Noisy)")
-    plt.title(f"Raw Received Signal (Noise + Multipath)\nPre-Filter BER: {ber:.4f}")
+    plt.title(
+        f"Raw Received Signal\n"
+        f"Distance: {distance}m | Medium: {medium.title()}\n"
+        f"Temp: {temp}°C | Pre-Filter BER: {ber:.4f}"
+    )
     plt.grid(True)
     plt.legend()
 
@@ -133,5 +192,7 @@ plot_tx_rx_filtered(
     tx_signal=tx_signal,
     rx_signal=rx_signal,
     filtered_signal=filtered_signal,
-    samples_per_bit=samples_per_bit
+    samples_per_bit=samples_per_bit,
+    distance=DISTANCE_M,
+    medium=MEDIUM_TYPE
 )
