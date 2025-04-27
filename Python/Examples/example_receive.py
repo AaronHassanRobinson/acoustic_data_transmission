@@ -1,90 +1,130 @@
-# example_receive.py
-
-import argparse
-import sounddevice as sd
+# simple_receive_loop_startstop.py
 import numpy as np
-import sys
-import os
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from Acoustic import demodulate_fsk
+import sounddevice as sd
 
 # Configuration
 SAMPLE_RATE = 44100
-BUFFER_SECONDS = 1
-DEFAULT_FREQ0 = 18000
-DEFAULT_FREQ1 = 19000
-BIT_RATE = 100
+DURATION = 0.1  # seconds per bit
+FREQ0 = 16000
+FREQ1 = 17000
+FREQ_START = 15500
+FREQ_STOP = 17500
+THRESHOLD = 0.01
+PREAMBLE = [1,0,1,0,1,0,1,0]
 
-def bits_to_text(bits):
-    """Convert array of bits to text"""
+def bits_to_text(bitgroups):
     chars = []
-    for i in range(0, len(bits)//8):
-        byte = bits[i*8:(i+1)*8]
-        chars.append(chr(int(''.join(map(str, byte)), 2)))
+    for bits in bitgroups:
+        byte = bits
+        if len(byte) == 8:
+            chars.append(chr(int(''.join(map(str, byte)), 2)))
     return ''.join(chars)
 
-class Receiver:
-    def __init__(self, freq0, freq1):
-        self.freq0 = freq0
-        self.freq1 = freq1
-        self.buffer = np.array([])
-        self.in_message = False
-        self.bits = []
-        
-    def audio_callback(self, indata, frames, time, status):
-        """Called for each audio chunk"""
-        self.buffer = np.concatenate([self.buffer, indata[:,0]])
-        
-        # Detect preamble
-        if not self.in_message:
-            if len(self.buffer) > SAMPLE_RATE:  # Look in last second of audio
-                # Simple energy detection
-                if np.max(self.buffer[-SAMPLE_RATE:]) > 0.1:
-                    self.in_message = True
-                    self.buffer = np.array([])
-                    print("\nMessage detected...")
-        
-        # Demodulate when in message mode
-        if self.in_message:
-            bits = demodulate_fsk(self.buffer, SAMPLE_RATE, self.freq0, self.freq1, BIT_RATE)
-            if bits:
-                self.bits.extend(bits)
-                self.buffer = self.buffer[len(bits)*int(SAMPLE_RATE/BIT_RATE):]
-                
-                # Try decoding
-                try:
-                    text = bits_to_text(self.bits)
-                    if len(text) > 0:
-                        print(f"\nReceived: {text}", end='\n> ', flush=True)
-                        self.reset()
-                except:
-                    self.reset()
+def detect_symbol(chunk):
+    window = np.hanning(len(chunk))
+    chunk = chunk * window
+    fft = np.fft.fft(chunk)
+    magnitudes = np.abs(fft)
 
-    def reset(self):
-        self.in_message = False
-        self.bits = []
-        self.buffer = np.array([])
+    n = len(chunk)
+    freq_bins = np.fft.fftfreq(n, 1/SAMPLE_RATE)
+
+    def get_energy(target_freq):
+        idx = np.argmin(np.abs(freq_bins - target_freq))
+        return magnitudes[idx]
+
+    energy0 = get_energy(FREQ0)
+    energy1 = get_energy(FREQ1)
+    energy_start = get_energy(FREQ_START)
+    energy_stop = get_energy(FREQ_STOP)
+
+    energies = {
+        'start': energy_start,
+        'stop': energy_stop,
+        0: energy0,
+        1: energy1,
+    }
+
+    detected = max(energies, key=energies.get)
+    if energies[detected] < 5.0:
+        return None
+
+    return detected
+
+def find_preamble(bits):
+    preamble_str = ''.join(map(str, PREAMBLE))
+    bits_str = ''.join(map(str, bits))
+    index = bits_str.find(preamble_str)
+    return index if index != -1 else None
 
 def main():
-    parser = argparse.ArgumentParser(description='FSK Audio Receiver')
-    parser.add_argument('--f0', type=float, default=DEFAULT_FREQ0, help='Frequency for 0-bit')
-    parser.add_argument('--f1', type=float, default=DEFAULT_FREQ1, help='Frequency for 1-bit')
-    args = parser.parse_args()
+    print("FSK Receiver with start/stop bits Ready. Listening... Press Ctrl+C to stop.")
+    blocksize = int(SAMPLE_RATE * DURATION)
 
-    receiver = Receiver(args.f0, args.f1)
-    
-    print(f"FSK Receiver listening (0={args.f0}Hz, 1={args.f1}Hz)...")
-    
-    with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, callback=receiver.audio_callback):
+    stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=1, blocksize=blocksize)
+    stream.start()
+
+    buffer = []
+    recording = False
+
+    try:
         while True:
-            try:
-                input("Press Enter to exit...")
-                break
-            except KeyboardInterrupt:
-                print("\nExiting receiver...")
-                break
+            block, _ = stream.read(blocksize)
+            block = block[:, 0]
+            energy = np.sum(block ** 2) / len(block)
+
+            if not recording:
+                if energy > THRESHOLD:
+                    print("Signal detected, recording message...")
+                    recording = True
+                    buffer = list(block)
+            else:
+                buffer.extend(block)
+
+                if len(buffer) >= blocksize * (len(PREAMBLE) + (10 * 10)):  # Enough for small message
+                    samples_per_bit = int(SAMPLE_RATE * DURATION)
+                    symbols = []
+                    for i in range(0, len(buffer), samples_per_bit):
+                        chunk = buffer[i:i+samples_per_bit]
+                        if len(chunk) < samples_per_bit:
+                            break
+                        symbol = detect_symbol(chunk)
+                        if symbol is not None:
+                            symbols.append(symbol)
+
+                    # Separate preamble
+                    bits = [s for s in symbols if isinstance(s, int)]
+                    idx = find_preamble(bits)
+                    if idx is not None:
+                        bits = symbols[idx + len(PREAMBLE):]
+                        
+                        # Now parse chars by start/stop wrapping
+                        messages = []
+                        current_byte = []
+                        collecting = False
+
+                        for sym in bits:
+                            if sym == 'start':
+                                collecting = True
+                                current_byte = []
+                            elif sym == 'stop':
+                                if collecting:
+                                    messages.append(current_byte)
+                                    collecting = False
+                            elif collecting and isinstance(sym, int):
+                                current_byte.append(sym)
+
+                        text = bits_to_text(messages)
+                        print(f"Received: '{text}'")
+                    else:
+                        print("Preamble not found.")
+
+                    recording = False
+                    buffer = []
+
+    except KeyboardInterrupt:
+        print("\nExiting receiver...")
+        stream.stop()
 
 if __name__ == "__main__":
     main()

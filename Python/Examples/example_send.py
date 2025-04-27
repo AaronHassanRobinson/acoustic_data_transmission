@@ -1,48 +1,58 @@
-# example_send.py
-
-import argparse
-import sounddevice as sd
+# simple_send_loop_startstop.py
 import numpy as np
-import sys
-import os
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from Acoustic import modulate_fsk
+import sounddevice as sd
 
 # Configuration
 SAMPLE_RATE = 44100
-DEFAULT_FREQ0 = 18000  # Hz (0-bit)
-DEFAULT_FREQ1 = 19000  # Hz (1-bit)
-BIT_RATE = 100        # bits/sec
+DURATION = 0.1  # seconds per bit
+FREQ0 = 16000
+FREQ1 = 17000
+FREQ_START = 15500
+FREQ_STOP = 17500
+PREAMBLE = [1,0,1,0,1,0,1,0]
 
 def text_to_bits(text):
-    """Convert text to array of bits"""
-    return np.array([int(bit) for char in text for bit in format(ord(char), '08b')])
+    bits = []
+    for char in text:
+        bits.extend(int(b) for b in format(ord(char), '08b'))
+    return bits
 
-def generate_packet(message):
-    """Add preamble and convert to bits"""
-    preamble = [1,0,1,0,1,0]  # Simple alternating preamble
-    message_bits = text_to_bits(message)
-    return np.concatenate([preamble, message_bits])
+def generate_tone(freq):
+    t = np.linspace(0, DURATION, int(SAMPLE_RATE * DURATION), endpoint=False)
+    wave = np.sin(2 * np.pi * freq * t)
+    return wave
+
+def send_message(message):
+    bits = PREAMBLE + []
+
+    for char in message:
+        bits.append('start')  # Special start marker
+        bits.extend([int(b) for b in format(ord(char), '08b')])
+        bits.append('stop')   # Special stop marker
+
+    signal = []
+    for bit in bits:
+        if bit == 'start':
+            signal.append(generate_tone(FREQ_START))
+        elif bit == 'stop':
+            signal.append(generate_tone(FREQ_STOP))
+        else:
+            freq = FREQ1 if bit else FREQ0
+            signal.append(generate_tone(freq))
+    signal = np.concatenate(signal)
+
+    sd.play(signal, samplerate=SAMPLE_RATE)
+    sd.wait()
 
 def main():
-    parser = argparse.ArgumentParser(description='FSK Audio Sender')
-    parser.add_argument('--f0', type=float, default=DEFAULT_FREQ0, help='Frequency for 0-bit')
-    parser.add_argument('--f1', type=float, default=DEFAULT_FREQ1, help='Frequency for 1-bit')
-    args = parser.parse_args()
-
-    print(f"FSK Sender ready (0={args.f0}Hz, 1={args.f1}Hz)")
-    
+    print("FSK Sender with start/stop bits Ready. Type text and press ENTER to send.")
     while True:
         try:
-            message = input("Message to send: ")
-            bits = generate_packet(message)
-            signal = modulate_fsk(bits, SAMPLE_RATE, args.f0, args.f1, BIT_RATE)
-            
-            # Play audio
-            sd.play(signal, SAMPLE_RATE, blocking=True)
-            print("Message sent!")
-            
+            text = input("> ")
+            if text.strip() == "":
+                continue
+            send_message(text)
+            print(f"Sent: '{text}'")
         except KeyboardInterrupt:
             print("\nExiting sender...")
             break
