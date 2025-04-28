@@ -2,23 +2,13 @@
 import numpy as np
 import sounddevice as sd
 
-# Configuration
-SAMPLE_RATE = 44100
-DURATION = 0.1  # seconds per bit
-FREQ0 = 16000
-FREQ1 = 17000
-FREQ_START = 15500
-FREQ_STOP = 17500
-THRESHOLD = 0.01
-PREAMBLE = [1,0,1,0,1,0,1,0]
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from Acoustic import *
 
-def bits_to_text(bitgroups):
-    chars = []
-    for bits in bitgroups:
-        byte = bits
-        if len(byte) == 8:
-            chars.append(chr(int(''.join(map(str, byte)), 2)))
-    return ''.join(chars)
+# using constants defined in constants.y in acoustic module
+# can redefine these if not fit for purpose
 
 def detect_symbol(chunk):
     window = np.hanning(len(chunk))
@@ -51,11 +41,7 @@ def detect_symbol(chunk):
 
     return detected
 
-def find_preamble(bits):
-    preamble_str = ''.join(map(str, PREAMBLE))
-    bits_str = ''.join(map(str, bits))
-    index = bits_str.find(preamble_str)
-    return index if index != -1 else None
+
 
 def main():
     print("FSK Receiver with start/stop bits Ready. Listening... Press Ctrl+C to stop.")
@@ -94,12 +80,11 @@ def main():
 
                     # Separate preamble
                     bits = [s for s in symbols if isinstance(s, int)]
-                    idx = find_preamble(bits)
+                    idx = detect_preamble(bits, PREAMBLE=PREAMBLE)
                     if idx is not None:
                         bits = symbols[idx + len(PREAMBLE):]
                         
                         # Now parse chars by start/stop wrapping
-                        messages = []
                         current_byte = []
                         collecting = False
 
@@ -109,16 +94,15 @@ def main():
                                 current_byte = []
                             elif sym == 'stop':
                                 if collecting:
-                                    messages.append(current_byte)
+                                    # We finished a byte, decode and print it
+                                    byte_text = unpack_bits([current_byte])
+                                    print(f"Received byte: '{byte_text}'")
                                     collecting = False
+
                             elif collecting and isinstance(sym, int):
                                 current_byte.append(sym)
-
-                        text = bits_to_text(messages)
-                        print(f"Received: '{text}'")
                     else:
                         print("Preamble not found.")
-
                     recording = False
                     buffer = []
 

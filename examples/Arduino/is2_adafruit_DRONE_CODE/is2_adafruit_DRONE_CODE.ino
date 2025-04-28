@@ -2,6 +2,7 @@
 #include <arduinoFFT.h>
 
 // reference code for using the adafruit is2 mic: https://learn.adafruit.com/adafruit-i2s-mems-microphone-breakout/arduino-wiring-and-test
+// Using: FFT code written by Kosme @: https://github.com/kosme/arduinoFFT
 
 // ----------------------------------------------- //
 // CAR FUNCTIONS

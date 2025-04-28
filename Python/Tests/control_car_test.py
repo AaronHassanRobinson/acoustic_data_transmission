@@ -3,6 +3,15 @@ import sounddevice as sd
 import numpy as np
 import threading
 import time
+"""
+Control a remote vehicle with a simple FSK setup
+===============================
+By Aaron Hassan Robinson
+This file contains code that launches a simple GUI to control a car with some set frequencies.
+Frequencies can be modified below.
+// -- // -- //
+"""
+
 
 # Sampling parameters
 SAMPLE_RATE = 44100

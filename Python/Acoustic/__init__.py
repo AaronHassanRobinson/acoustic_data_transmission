@@ -26,9 +26,10 @@ Modules:
 
 from .fsk import modulate_fsk, demodulate_fsk
 from .protocol import encode_packet, decode_packet, detect_preamble
-from .physical import record_audio, play_audio
+from .physical import record_audio, play_audio, generate_tone
 from .codec import pack_bits, unpack_bits
 from .signal_filters import butter_bandpass, bandpass_filter
+from .constants import *
 
 __all__ = [
     "modulate_fsk",
@@ -38,8 +39,17 @@ __all__ = [
     "detect_preamble",
     "record_audio",
     "play_audio",
+    "generate_tone",
     "pack_bits",
     "unpack_bits",
     "butter_bandpass",
-    "bandpass_filter"
+    "bandpass_filter",
+    "SAMPLE_RATE",
+    "DURATION",
+    "FREQ0",
+    "FREQ1",
+    "FREQ_START",
+    "FREQ_STOP",
+    "PREAMBLE", 
+    "THRESHOLD"
 ]
