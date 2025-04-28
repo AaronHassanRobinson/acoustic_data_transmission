@@ -1,10 +1,69 @@
 #include <driver/i2s.h>
 #include <arduinoFFT.h>
 
+// ----------------------------------------------- //
+// CAR FUNCTIONS
+// ----------------------------------------------- //
+
+#define motorDriveForward 26
+#define motorDriveBackward 27
+
+// Motor B - left/right
+#define motorTurnLeft 15
+#define motorTurnRight 18
+
+// Movement duration (in milliseconds)
+const int moveDuration = 1000;
+
+// Move forward for a short time
+void moveForward() {
+  Serial.println("Moving forward...");
+  digitalWrite(motorDriveBackward, LOW);
+  digitalWrite(motorDriveForward, HIGH);
+  delay(moveDuration);
+  stopMotors();
+}
+
+// Move backward for a short time
+void moveBackward() {
+  Serial.println("Moving backward...");
+  digitalWrite(motorDriveForward, LOW);
+  digitalWrite(motorDriveBackward, HIGH);
+  delay(moveDuration);
+  stopMotors();
+}
+
+// Turn left (keep turning until you manually stop or set a delay)
+void turnLeft() {
+  Serial.println("Turning left...");
+  digitalWrite(motorTurnRight, LOW);
+  digitalWrite(motorTurnLeft, HIGH);
+}
+
+// Turn right (keep turning until you manually stop or set a delay)
+void turnRight() {
+  Serial.println("Turning right...");
+  digitalWrite(motorTurnLeft, LOW);
+  digitalWrite(motorTurnRight, HIGH);
+}
+
+// Stop all movement
+void stopMotors() {
+  Serial.println("Stopping...");
+  digitalWrite(motorDriveForward, LOW);
+  digitalWrite(motorDriveBackward, LOW);
+  digitalWrite(motorTurnLeft, LOW);
+  digitalWrite(motorTurnRight, LOW);
+}
+
+
+// ----------------------------------------------- //
+
+
 // === I2S Microphone Configuration ===
-#define I2S_WS  18 // LRCL (Word Select)
-#define I2S_SD  17 // DOUT (Serial Data)
-#define I2S_SCK 16 // BCLK (Serial Clock)
+#define I2S_WS  21 // LRCL (Word Select)
+#define I2S_SD  16 // DOUT (Serial Data)
+#define I2S_SCK 4 // BCLK (Serial Clock)
 #define I2S_PORT I2S_NUM_0
 
 // FFT Configuration
@@ -22,6 +81,18 @@ ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, FFT_SAMPLES, SAMPLING_
 // DC Offset
 double dcOffset = 0;
 bool firstCalibrationDone = false;
+
+// New frequencies
+const double FREQ_FORWARD = 480;
+const double FREQ_LEFT = 550;
+const double FREQ_RIGHT = 620;
+const double FREQ_BACKWARD = 690;
+const double FREQ_STRAIGHTEN = 530; // New!
+
+const double FREQ_START = 200;
+const double FREQ_STOP = 1000;
+const double FREQ_0 = 340;
+const double FREQ_1 = 410;
 
 void calculateDCOffset() {
   const uint16_t samplesToAverage = 1024;
@@ -103,8 +174,7 @@ double calculateDominantFrequency() {
     }
   }
 
-  // Lower threshold for detection
-  if (maxMagnitude < 3) {  // LOWERED from 10 → 3
+  if (maxMagnitude < 3) {  // Detection threshold
     return 0;
   }
 
@@ -133,6 +203,16 @@ double calculateDominantFrequency() {
 void setup() {
   Serial.begin(115200);
   while (!Serial);
+    // Set motor pins as outputs
+  pinMode(motorDriveForward, OUTPUT);
+  pinMode(motorDriveBackward, OUTPUT);
+  pinMode(motorTurnLeft, OUTPUT);
+  pinMode(motorTurnRight, OUTPUT);
+
+  // Stop motors initially
+  stopMotors();
+
+  Serial.println("Drone motors initialised!");
 
   // I2S Setup
   i2s_config_t i2sConfig = {
@@ -160,7 +240,7 @@ void setup() {
   i2s_set_pin(I2S_PORT, &pinConfig);
 
   calculateDCOffset();
-  Serial.println("System ready - Play audio from your phone!");
+  Serial.println("Frequency analysis system ready - Listening for commands...");
 }
 
 void loop() {
@@ -173,35 +253,44 @@ void loop() {
     Serial.print(frequency, 1);
     Serial.println(" Hz");
   }
-   if (abs(frequency - 480) <= TOLERANCE) {
+
+  const double TOLERANCE = 20.0; 
+
+  if (abs(frequency - FREQ_FORWARD) <= TOLERANCE) {
     Serial.println("MOVE FORWARD");
+    moveForward();
   }
-  else if (abs(frequency - 550) <= TOLERANCE) {
+  else if (abs(frequency - FREQ_LEFT) <= TOLERANCE) {
     Serial.println("TURN LEFT");
+    turnLeft();
   }
-  else if (abs(frequency - 620) <= TOLERANCE) {
+  else if (abs(frequency - FREQ_RIGHT) <= TOLERANCE) {
     Serial.println("TURN RIGHT");
+    turnRight();
   }
-  else if (abs(frequency - 690) <= TOLERANCE) {
+  else if (abs(frequency - FREQ_BACKWARD) <= TOLERANCE) {
     Serial.println("MOVE BACKWARD");
+    moveBackward();
   }
-  else if (abs(frequency - 200) <= TOLERANCE) {
+  else if (abs(frequency - FREQ_STRAIGHTEN) <= TOLERANCE) {
+    Serial.println("STRAIGHTEN");
+    stopMotors();
+  }
+  else if (abs(frequency - FREQ_START) <= TOLERANCE) {
     Serial.println("START BINARY TRANSMISSION");
   }
-  else if (abs(frequency - 1000) <= TOLERANCE) {
+  else if (abs(frequency - FREQ_STOP) <= TOLERANCE) {
     Serial.println("STOP BINARY TRANSMISSION");
   }
-  else if (abs(frequency - 340) <= TOLERANCE) {
+  else if (abs(frequency - FREQ_0) <= TOLERANCE) {
     Serial.println("Received BIT: 0");
   }
-  else if (abs(frequency - 410) <= TOLERANCE) {
+  else if (abs(frequency - FREQ_1) <= TOLERANCE) {
     Serial.println("Received BIT: 1");
   }
   else {
     Serial.println("Unknown tone");
   }
-
-  delay(50);
 
   delay(50);
 }
