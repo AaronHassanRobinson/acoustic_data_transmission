@@ -16,7 +16,7 @@
 #define motorTurnRight 18
 
 // Movement duration (in milliseconds)
-const int moveDuration = 1000;
+const int moveDuration = 500;
 
 // Move forward for a short time
 void moveForward() {
@@ -71,8 +71,8 @@ void stopMotors() {
 
 // FFT Configuration
 const uint16_t FFT_SAMPLES = 512;
-const double SAMPLING_FREQ = 40000.0;
-const uint32_t I2S_SAMPLE_RATE = 40000;
+const double SAMPLING_FREQ = 44100.0; // same as sender
+const uint32_t I2S_SAMPLE_RATE = 44100;
 const uint8_t BIT_SHIFT = 14;
 const uint16_t FREQ_RANGE_MIN = 50;
 const uint16_t FREQ_RANGE_MAX = 20000;
@@ -138,7 +138,7 @@ double calculateDominantFrequency() {
     if (sample > maxSample) maxSample = sample;
   }
 
-  // Recenter dynamic DC drift if needed (slow adjustment)
+  // Recenter dynamic DC drift if needed (slow adjustment) 
   if (firstCalibrationDone) {
     double dynamicDC = (maxSample + minSample) / 2.0;
     dcOffset = 0.98 * dcOffset + 0.02 * (dcOffset + dynamicDC); // Smooth update
@@ -146,7 +146,7 @@ double calculateDominantFrequency() {
     firstCalibrationDone = true;
   }
 
-  // Optional light "gain" to boost weak signals
+  // light "gain" to boost weak signals
   double signalSpan = maxSample - minSample;
   double gain = 1.0;
   if (signalSpan < 1000) gain = 4.0;
@@ -158,7 +158,6 @@ double calculateDominantFrequency() {
 
   // Apply window (Hamming window — keeps more energy at edges)
   FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
-
   // Compute FFT
   FFT.compute(FFTDirection::Forward);
   FFT.complexToMagnitude();

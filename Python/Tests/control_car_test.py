@@ -11,7 +11,10 @@ This file contains code that launches a simple GUI to control a car with some se
 Frequencies can be modified below.
 // -- // -- //
 """
-
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from Acoustic import *
 
 # Sampling parameters
 SAMPLE_RATE = 44100
@@ -55,6 +58,9 @@ def transmit_binary(bits):
         time.sleep(0.05)
 
     play_tone(FREQ_STOP)
+    
+    
+
 
 # Movement control transmission
 def send_movement_command(direction):

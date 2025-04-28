@@ -1,9 +1,8 @@
 # python/acoustic/fsk.py
-# [todo]: might switch to scipy library for simplicity and consistency
+# [todo]:  switch to scipy library for simplicity and consistency
 import numpy as np
 
 
-# bit : Samples per 
 def modulate_fsk(bits, sample_rate=44100, freq0=1000, freq1=2000, bit_rate=0.1):
     """
     Modulates bits into FSK audio signal
@@ -53,7 +52,9 @@ def demodulate_fsk(signal, sample_rate=44100, freq0=1000, freq1=2000, bit_rate=1
     # Add windowing and neighborhood check parameters
     neighborhood = 2  # bins to check around target frequency
     window = np.hanning(samples_per_bit)  # Pre-calculate window
-    
+    # https://numpy.org/doc/stable/reference/generated/numpy.hanning.html 
+    # note: different from Hamming!
+    # hanning window to spectral leakage, aka artificial high-frequency components introduced at start and end of signal
     for i in range(start_index, len(signal), samples_per_bit):
         #window = np.hanning(len(chunk)) 
         chunk = signal[i:i+samples_per_bit]

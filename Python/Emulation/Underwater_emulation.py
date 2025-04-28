@@ -16,6 +16,9 @@ guard_band = 100 # 100hz guard band
 preamble = np.array([1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0])  # Barker code
 samples_per_bit = int(sample_rate_fs / bit_rate)
 
+SPEED_OF_SOUND = 1447  
+# speed of sound in water 10 degrees celsius. source: https://www.omnicalculator.com/physics/speed-of-sound
+# adjust as needed 
 DISTANCE_M = 10
 MEDIUM_TYPE = "saltwater"
 
@@ -25,9 +28,10 @@ tx_bits = np.concatenate([preamble, data_bits])
 
 tx_signal = modulate_fsk(bits=tx_bits, sample_rate=sample_rate_fs, freq0=f0, freq1=f1,bit_rate=bit_rate)
 
-# ==============================
+
+
+# todo: could probably make this it's own class 
 # Underwater Channel Effects
-# ==============================
 def add_channel_effects(signal, distance_m, medium='saltwater', temp_c=10, salinity_ppt=35, depth_m=100):
     """
     Simulates underwater acoustic channel effects
@@ -78,7 +82,7 @@ def add_channel_effects(signal, distance_m, medium='saltwater', temp_c=10, salin
     attenuation = 10**(-total_loss_db/20)  # Convert dB to linear
     
     # 3. Apply basic multipath time spreading
-    delay_spread = int((distance_m / 1500) * sample_rate_fs)  # Speed of sound ~1500m/s
+    delay_spread = int((distance_m / SPEED_OF_SOUND) * sample_rate_fs)  # Speed of sound ~1500m/s
     multipath = 0.4 * np.roll(signal, delay_spread)
     multipath[:delay_spread] = 0
     
@@ -102,18 +106,16 @@ def add_channel_effects(signal, distance_m, medium='saltwater', temp_c=10, salin
 
 rx_signal = add_channel_effects(signal=tx_signal, distance_m=DISTANCE_M, medium=MEDIUM_TYPE)
 
-
-
 # Apply bandpass filter
 lowcut = min(f0, f1) - guard_band  # 500Hz guard band
 highcut = max(f0, f1) + guard_band
 filtered_signal = bandpass_filter(rx_signal, lowcut, highcut, sample_rate_fs)
 
-# ==============================
-# Receiver
-# ==============================
+
 # [todo]: investigate if this is the best way to detect preamble
 def detect_preamble(signal, preamble):
+    # generates a signal, then compares the  signal read with the known generated one 
+    # todo: swap this out with the one that compares the bits 
     preamble_signal = modulate_fsk(bits=preamble, sample_rate=sample_rate_fs, freq0=f0, freq1=f1,bit_rate=bit_rate)
     correlation = correlate(signal, preamble_signal, mode='full')
     peak_idx = np.argmax(correlation)
@@ -124,16 +126,15 @@ def detect_preamble(signal, preamble):
 preamble_start = detect_preamble(filtered_signal, preamble)
 #rx_bits = demodulate_fsk(filtered_signal, preamble_start + len(preamble) * samples_per_bit)
 rx_bits = demodulate_fsk(signal=filtered_signal, sample_rate=sample_rate_fs, freq0=f0, freq1=f1, bit_rate=bit_rate, start_index=preamble_start + len(preamble)* samples_per_bit )
-# ==============================
-# Analysis
-# ==============================
+
+
 # Bit Error Rate (BER)
 min_len = min(len(rx_bits), len(data_bits))
 ber = np.sum(np.abs(rx_bits[:min_len] - data_bits[:min_len])) / min_len
 print(f"Bit Error Rate (BER): {ber:.4f}")
 
 # ==============================
-# Enhanced Plotting with Filtering
+#  Plotting
 # ==============================
 def plot_tx_rx_filtered(expected_bits, rx_bits, tx_signal, rx_signal, filtered_signal, samples_per_bit, distance=0, medium="unknown", temp=10): 
     
@@ -180,11 +181,8 @@ def plot_tx_rx_filtered(expected_bits, rx_bits, tx_signal, rx_signal, filtered_s
             plt.scatter(i, 0.5, color='black', marker='x', s=100)
             error_count += 1
     print(f"Total errors: {error_count}")
-    print(f"Error percentage: {error_count}")
-
-            
+    print(f"Error percentage: {error_count}")       
     plt.legend()
-
     plt.tight_layout()
     plt.show()
 
