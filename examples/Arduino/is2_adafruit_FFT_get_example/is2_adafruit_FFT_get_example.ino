@@ -1,6 +1,8 @@
 #include <driver/i2s.h>
 #include <arduinoFFT.h>
 
+// reference code for using the adafruit is2 mic: https://learn.adafruit.com/adafruit-i2s-mems-microphone-breakout/arduino-wiring-and-test
+
 // === I2S Microphone Configuration ===
 #define I2S_WS  18 // LRCL (Word Select)
 #define I2S_SD  17 // DOUT (Serial Data)

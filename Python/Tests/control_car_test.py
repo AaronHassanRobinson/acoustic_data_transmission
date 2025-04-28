@@ -54,7 +54,7 @@ def send_movement_command(direction):
         'A': FREQ_LEFT,
         'D': FREQ_RIGHT,
         'S': FREQ_BACKWARDS,
-        'SPACE': FREQ_STRAIGHTEN
+        'RESET': FREQ_STRAIGHTEN
     }
     freq = freq_map.get(direction.upper())
     if freq:
@@ -96,7 +96,7 @@ def create_gui():
     btn_a = tk.Button(control_frame, text="← A", width=10, height=2, command=lambda: send_movement_command('A'))
     btn_d = tk.Button(control_frame, text="→ D", width=10, height=2, command=lambda: send_movement_command('D'))
     btn_s = tk.Button(control_frame, text="↓ S", width=10, height=2, command=lambda: send_movement_command('S'))
-    btn_space = tk.Button(control_frame, text="⎵ SPACE", width=10, height=2, command=lambda: send_movement_command('SPACE'))
+    btn_space = tk.Button(control_frame, text="⎵ RESET", width=10, height=2, command=lambda: send_movement_command('RESET'))
 
     btn_w.grid(row=0, column=1, padx=5, pady=5)
     btn_a.grid(row=1, column=0, padx=5, pady=5)

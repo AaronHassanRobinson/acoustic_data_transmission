@@ -52,7 +52,10 @@ def add_channel_effects(signal, distance_m, medium='saltwater', temp_c=10, salin
         # Spreading loss (cylindrical)
         spreading_loss = 10 * np.log10(distance)  # dB
         
+        # example test for different environments: For best accuracy,
+        # the user should fill in stats depending on the water they are in
         # Absorption loss (Thorp formula for frequencies > 400 Hz)
+        # source for this: https://gorbatschow.github.io/SonarDocs/sound_absorption_sea_thorp.en/#octavematlab-implementation 
         if medium == 'saltwater':
             # Thorp's equation (dB/km)
             absorption = 0.11 * (freq**2)/(1 + freq**2) + 44 * (freq**2)/(4100 + freq**2) + 2.75e-4 * freq**2 + 0.003
@@ -65,20 +68,22 @@ def add_channel_effects(signal, distance_m, medium='saltwater', temp_c=10, salin
         else:
             raise ValueError(f"Unknown medium: {medium}")
         
-        absorption_loss = absorption * (distance/1000)  # Convert to dB
+        absorption_loss = absorption * (distance/1000)  # Convert to dB, div to convrt to km
         
         return spreading_loss + absorption_loss
     
-    # 2. Apply frequency-dependent attenuation (simplified version)
+    # 2. Apply frequency-dependent attenuation 
     center_freq = (f0 + f1)/2
     total_loss_db = get_attenuation(center_freq, distance_m)
     attenuation = 10**(-total_loss_db/20)  # Convert dB to linear
     
-    # 3. Apply basic time spreading (multipath)
+    # 3. Apply basic multipath time spreading
     delay_spread = int((distance_m / 1500) * sample_rate_fs)  # Speed of sound ~1500m/s
     multipath = 0.4 * np.roll(signal, delay_spread)
     multipath[:delay_spread] = 0
     
+    
+    # example test for different environments: the user should fill in stats depending on the water they are in
     # 4. Add environmental noise
     def ambient_noise(freq):
         """Wenz curve approximation for ambient noise"""
