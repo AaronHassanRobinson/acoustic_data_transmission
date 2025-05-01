@@ -4,3 +4,7 @@ Data is sent in the format:
 
 For simulation, data is packed in the format:
 [preamble][data]
+
+
+## limitations:
+This protocol is limited by no error handling, half duplex implemtation, and no crypt
