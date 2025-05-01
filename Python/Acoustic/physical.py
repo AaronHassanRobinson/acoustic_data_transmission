@@ -2,10 +2,10 @@ import numpy as np
 import sounddevice as sd
 from .constants import *
 
-#[todo]: 
+#[todo]: for debugging
 def record_audio():
     pass
-#[todo]: 
+#[todo]: for debugging
 def play_audio():
     pass
 

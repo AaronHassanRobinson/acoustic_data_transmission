@@ -1,4 +1,5 @@
 def pack_bits(text):
+    #todo: document
     bits = []
     for char in text:
         bits.extend(int(b) for b in format(ord(char), '08b'))

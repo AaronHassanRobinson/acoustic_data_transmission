@@ -31,7 +31,7 @@ FREQ_FORWARD = 480
 FREQ_LEFT = 550
 FREQ_RIGHT = 620
 FREQ_BACKWARDS = 690
-FREQ_STRAIGHTEN = 530  # New frequency for "straighten"
+FREQ_STRAIGHTEN = 530  
 
 # Function to generate and play a tone
 def play_tone(freq, duration=DURATION):
@@ -40,6 +40,8 @@ def play_tone(freq, duration=DURATION):
     sd.play(tone, SAMPLE_RATE)
     sd.wait()
 
+
+#todo: switch this to send from acoustic module 
 # Send a character as 8-bit binary via FSK
 def send_char(c):
     byte = format(ord(c), '08b')

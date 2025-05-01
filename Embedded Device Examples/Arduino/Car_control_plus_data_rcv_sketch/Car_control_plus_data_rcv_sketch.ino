@@ -2,10 +2,11 @@
 
 // =============================== //
 // Example: Acoustic receive data & control a vehicle remotely using FSK acoustically 
-// Made by: Aaron Hassan Robinson
+// Made by: Aaron Hassan Robinson: https://github.com/AaronHassanRobinson/acoustic_data_transmission
 // Using: FFT code written by Kosme @: https://github.com/kosme/arduinoFFT
 // =============================== //
-
+// microphone used: KY-037 analog microphone
+// results: https://youtube.com/shorts/RTgkPt1IsJs?feature=share 
 
 const uint16_t samples = 512;            
 const double samplingFrequency = 10000.0; 
@@ -15,7 +16,6 @@ ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, samples, samplingFrequ
 const int micPin = 33;
 
 // protocol:
-
 // ----------- For sending data! --------------- // FSK binary implementation 
 // 50hz guards inbetween each freq
 // Start bit: 
@@ -104,7 +104,8 @@ void process_binary_signal()
   int bits[8];
   for (int i = 0; i < 8; i++) 
   {
-    delay(900); // wait for next bit (can tune this)
+    delay(900); // wait for next bit (can tune this) ~ note: this is a primitive way to "synchronise timing"
+                // and is not very reliable. Ideally you would begin transmissions with some sort of synchronisation process
 
     // Resample
     unsigned long startMicrosBit = micros();
@@ -117,7 +118,7 @@ void process_binary_signal()
     }
     Serial.print("Avg raw: ");
     Serial.println(sum / samples);
-
+      
     FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
     FFT.compute(FFTDirection::Forward);
     FFT.complexToMagnitude();
