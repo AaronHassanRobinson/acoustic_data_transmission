@@ -11,7 +11,7 @@ from Acoustic import *
 # can redefine these if not fit for purpose
 
 # eventual packet goal
-# [preamble][start_bit][packet_header][message][stop_bit]a
+# [preamble][start_bit][packet_header][message][stop_bit]
 
 def send_message(message):
     bits = PREAMBLE + []
