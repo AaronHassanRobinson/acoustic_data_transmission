@@ -30,3 +30,13 @@ modulate_fsk and demodulate_fsk are two functions that can be used in tandem in 
 
 #### FSK.py - modulation and demodulation techniques for Frequency shift keying
 
+
+
+## Docs:
+This folder contains folders labelled schematics, slides, System_diagram. 
+### Schematics: 
+Any circuitry I designed 
+### Slides:
+My slides for my project demonstration
+### System_Diagram:
+My system diagram 

@@ -35,9 +35,7 @@ tx_bits = np.concatenate([preamble, data_bits])
 
 tx_signal = modulate_fsk(bits=tx_bits, sample_rate=sample_rate_fs, freq0=f0, freq1=f1,bit_rate=bit_rate)
 
- # Absorption loss (Thorp formula for frequencies > 400 Hz)
-        # source for this: https://gorbatschow.github.io/SonarDocs/sound_absorption_sea_thorp.en/#octavematlab-implementation 
-# Thorp, William H, "Analytic description of the low‐frequency attenuation coefficient", 1967
+
 
 # todo: could probably make this it's own class 
 # Underwater Channel Effects
@@ -73,9 +71,9 @@ def add_channel_effects(signal, distance_m, medium='saltwater', temp_c=10, salin
         # Absorption loss (Thorp formula for frequencies > 400 Hz)
         # Thorp's equation (dB/km)
         # source for this: https://gorbatschow.github.io/SonarDocs/sound_absorption_sea_thorp.en/#octavematlab-implementation 
+         # Absorption loss (Thorp formula for frequencies > 400 Hz)
         if medium == 'saltwater':
             f_kHz = freq / 1000  
-    
             # Apply the Thorp formula from the source
             alpha = 1.0936 * (
                 0.1 * (f_kHz**2) / (1 + f_kHz**2) + 
@@ -109,7 +107,6 @@ def add_channel_effects(signal, distance_m, medium='saltwater', temp_c=10, salin
     delay_spread = int((distance_m / SPEED_OF_SOUND) * sample_rate_fs) 
     multipath = 0.4 * np.roll(signal, delay_spread)
     multipath[:delay_spread] = 0
-    
     
     # example test for different environments: the user should fill in stats depending on the water they are in
     # 4. Add environmental noise
