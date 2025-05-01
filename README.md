@@ -40,3 +40,14 @@ Any circuitry I designed
 My slides for my project demonstration
 ### System_Diagram:
 My system diagram 
+
+
+### Logs: 
+This folder contains video demos and figure results from the emulation.
+
+### Embedded / Arduino
+This contains any code I used on embedded devices, including the code for the RC CAR via FSK
+
+
+
+
